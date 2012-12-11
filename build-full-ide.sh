@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 # Warning: This script has been tested wit Mac OSX only.
 
@@ -430,11 +430,11 @@ function checkout_git_repo()
   if [[ "$REFS" = "tags" ]]
   then
     debug "In $FOLDER_DIR, checking out tag $BRANCH"
-    $GIT checkout $BRANCH
+    $GIT checkout -q $BRANCH
   else
     FULL_BRANCH_NAME=origin/$BRANCH
     debug "In $FOLDER_DIR, checking out branch $FULL_BRANCH_NAME"
-    $GIT checkout $FULL_BRANCH_NAME
+    $GIT checkout -q $FULL_BRANCH_NAME
   fi
   cd $BASE_DIR
   validate ${FOLDER_DIR}
