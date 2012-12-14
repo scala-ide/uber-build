@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-# Warning: This script has been tested wit Mac OSX only.
+# Warning: This script has only been tested with Mac OSX and Ubuntu Linux.
 
 # Usage Examples
 # Unsigned Build: SCALA_VERSION=2.11.0-SNAPSHOT SCALARIFORM_GIT_REPO=git://github.com/mdr/scalariform.git SCALA_REFACTORING_GIT_REPO=git://git.assembla.com/scala-refactoring.git SCALA_IDE_BRANCH=master SCALARIFORM_BRANCH=master SCALA_REFACTORING_BRANCH=master ./build-full-ide.sh
@@ -405,15 +405,15 @@ function assert_branch_in_repo_verbose()
 # Check that there are no uncommitted changes in $1
 function validate()
 {
-  IGNORED_FILES_REGEX='\.classpath'
-  (
+  IGNORED_FILES_REGEX='^\.classpath$'
+  # count the number of entries which doesn't match the regex
+  COUNT=`(
     cd $1
-    $GIT diff --name-only | grep -v ${IGNORED_FILES_REGEX} > /dev/null
-  )
-  RET=$?
-  if [[ $RET -eq 0 ]]; then
+    $GIT status --porcelain | awk "BEGIN {count = 0} {if (!match(\\\$2, \"${IGNORED_FILES_REGEX}\")) {count= count + 1;}} END {print count;}"
+  )`
+  if [[ $COUNT -ne 0 ]]; then
   	echo -e "\nYou have uncommitted changes in $1:\n"
-  	(cd $1 && git diff --name-status | grep -v ${IGNORED_FILES_REGEX})
+	(cd $1 && $GIT status | grep -v ${IGNORED_FILES_REGEX})
   	abort
   fi 
 }
