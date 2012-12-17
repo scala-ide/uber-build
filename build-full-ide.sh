@@ -3,8 +3,8 @@
 # Warning: This script has only been tested with Mac OSX and Ubuntu Linux.
 
 # Usage Examples
-# Unsigned Build: SCALA_VERSION=2.11.0-SNAPSHOT SCALARIFORM_GIT_REPO=git://github.com/mdr/scalariform.git SCALA_REFACTORING_GIT_REPO=git://git.assembla.com/scala-refactoring.git SCALA_IDE_BRANCH=master SCALARIFORM_BRANCH=master SCALA_REFACTORING_BRANCH=master ./build-full-ide.sh
-# Signed Build: VERSION_TAG=m3 SCALA_VERSION=2.10.0 SCALARIFORM_GIT_REPO=git://github.com/mdr/scalariform.git SCALA_REFACTORING_GIT_REPO=git://git.assembla.com/scala-refactoring.git SCALA_IDE_BRANCH=master SCALARIFORM_BRANCH=master SCALA_REFACTORING_BRANCH=master SIGN_BUILD=true KEYSTORE_GIT_REPO=<profive git url to keystore> KEYSTORE_PASS=<provide keystore password> ./build-full-ide.sh
+# Unsigned Build: SCALA_VERSION=2.11.0-SNAPSHOT SBT_GIT_REPO=git://github.com/scala-ide/xsbt.git SCALARIFORM_GIT_REPO=git://github.com/mdr/scalariform.git SCALA_REFACTORING_GIT_REPO=git://git.assembla.com/scala-refactoring.git SCALA_IDE_BRANCH=master SCALARIFORM_BRANCH=master SCALA_REFACTORING_BRANCH=master SBT_BRANCH=0.13 SBINARY_BRANCH=master ./build-full-ide.sh
+# Signed Build: VERSION_TAG=m3 SBT_GIT_REPO=git://github.com/scala-ide/xsbt.git SCALA_VERSION=2.10.0 SCALARIFORM_GIT_REPO=git://github.com/mdr/scalariform.git SCALA_REFACTORING_GIT_REPO=git://git.assembla.com/scala-refactoring.git SCALA_IDE_BRANCH=master SCALARIFORM_BRANCH=master SCALA_REFACTORING_BRANCH=master SBT_BRANCH=0.13 SBINARY_BRANCH=master SIGN_BUILD=true KEYSTORE_GIT_REPO=<profive git url to keystore> KEYSTORE_PASS=<provide keystore password> ./build-full-ide.sh
 #
 # If you wish to skip tests when building scala-refactoring, you can do so by setting the value of REFACTORING_MAVEN_ARGS=-Dmaven.test.skip=true, and pass it to the script.
 
@@ -34,6 +34,9 @@ export MAVEN_OPTS="-Xmx1500m"
 : ${SCALARIFORM_BRANCH:=}         # Scalariform branch/tag to build
 : ${SCALA_REFACTORING_GIT_REPO:=} # Git repository to use to build scala-refactoring
 : ${SCALA_REFACTORING_BRANCH:=}   # Scala-refactoring branch/tag to build
+: ${SBT_GIT_REPO:=}               # Git repository to use to build sbt artifacts
+: ${SBT_BRANCH:=}                 # Sbt branch/tag to build
+: ${SBINARY_BRANCH:=}             # Sbinary branch/tag to build
 : ${REFACTORING_MAVEN_ARGS:=""}   # Pass some maven argument to the scala-refactoring build, e.g. -Dmaven.test.skip=true
 
 ###############################################################
@@ -92,31 +95,19 @@ fi
 
 case $SCALA_VERSION in
 
-	2.9* )
+	2.9.* )
 		maven_toolchain_profile=sbt-2.9
 		scala_profile_ide=scala-2.9.x
 		REPO_SUFFIX=29x
 		;;
 
-	2.10.0-SNAPSHOT )
+	2.10.* )
 		maven_toolchain_profile=sbt-2.10
 		scala_profile_ide=scala-2.10.x
 		REPO_SUFFIX=210x
 		;;
 
-	2.10.0-M* )
-		maven_toolchain_profile=sbt-2.10
-		scala_profile_ide="scala-2.10.x"
-		REPO_SUFFIX=210x
-		;;
-
-	2.10.0-RC* )
-		maven_toolchain_profile=sbt-2.10
-		scala_profile_ide="scala-2.10.x"
-		REPO_SUFFIX=210x
-		;;
-
-    2.11.0-SNAPSHOT )
+    2.11.* )
 		maven_toolchain_profile=sbt-2.11
 		scala_profile_ide=scala-2.11.x
 		REPO_SUFFIX=211x
@@ -198,10 +189,10 @@ function build_sbinary()
 	$SBT "reboot full" clean "show scala-instance" "set every crossScalaVersions := Seq(\"${SCALA_VERSION}\")" \
 	 'set every publishMavenStyle := true' \
 	 'set every resolvers := Seq("Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")' \
-	 'set every publishTo := Some(Resolver.file("Local Maven",  new File(Path.userHome.absolutePath+"/.m2/repository")))' \
+	 "set every publishTo := Some(Resolver.file(\"Local Maven\",  new File(\"${LOCAL_REPO}\")))" \
 	 'set every crossPaths := true' \
-	 +core/publish \
-	 +core/publish-local # ivy style for xsbt
+	 'set every scalaBinaryVersion <<= scalaVersion.identity' \
+	 +core/publish
 
 
 	cd ${BASE_DIR}
@@ -218,11 +209,13 @@ function build_xsbt()
 	'set every publishMavenStyle := true' \
 	'set every resolvers := Seq("Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")' \
 	'set artifact in (compileInterfaceSub, packageBin) := Artifact("compiler-interface")' \
-    'set every publishTo := Some(Resolver.file("Local Maven",  new File(Path.userHome.absolutePath+"/.m2/repository")))' \
+	"set every publishTo := Some(Resolver.file(\"Local Maven\",  new File(\"${LOCAL_REPO}\")))" \
 	'set every crossPaths := true' \
+	'set every scalaBinaryVersion <<= scalaVersion.identity' \
 	+classpath/publish +logging/publish +io/publish +control/publish +classfile/publish \
 	+process/publish +relation/publish +interface/publish +persist/publish +api/publish \
-	 +compiler-integration/publish +incremental-compiler/publish +compile/publish +compiler-interface/publish
+	+compiler-integration/publish +incremental-compiler/publish +compile/publish        \
+	+compiler-interface/publish
 
 	cd ${BASE_DIR}
 }
@@ -232,7 +225,7 @@ function build_toolchain()
 	# build toolchain
 	print_step "build-toolchain"
 
-	MAVEN_ARGS="-P ${scala_profile_ide} clean install"
+	MAVEN_ARGS="-P ${scala_profile_ide} -Dmaven.repo.local=${LOCAL_REPO} clean install"
 	rm -rf ${SOURCE}/*
 
 	cd ${SCALAIDE_DIR}
@@ -275,7 +268,7 @@ function build_refactoring()
 
 	cd ${SCALA_REFACTORING_DIR}
 	GIT_HASH="`git log -1 --pretty=format:"%h"`"
-	${MAVEN} -P ${scala_profile_ide} -Dscala.version=${SCALA_VERSION} $REFACTORING_MAVEN_ARGS -Drepo.scala-ide="file:/${SOURCE}" -Dgit.hash=${GIT_HASH} clean package
+	${MAVEN} -P ${scala_profile_ide} -Dscala.version=${SCALA_VERSION} $REFACTORING_MAVEN_ARGS -Drepo.scala-ide="file:/${SOURCE}" -Dmaven.repo.local=${LOCAL_REPO} -Dgit.hash=${GIT_HASH} clean package
 
 	cd $BASE_DIR
 
@@ -310,7 +303,7 @@ function build_scalariform()
 
 	GIT_HASH="`git log -1 --pretty=format:"%h"`"
 	
-	${MAVEN} -P ${scala_profile_ide} -Dscala.version=${SCALA_VERSION} -Drepo.scala-ide="file:/${SOURCE}" -Dgit.hash=${GIT_HASH} clean package
+	${MAVEN} -P ${scala_profile_ide} -Dscala.version=${SCALA_VERSION} -Drepo.scala-ide="file:/${SOURCE}" -Dmaven.repo.local=${LOCAL_REPO} -Dgit.hash=${GIT_HASH} clean package
 
 	rm -rf ${SOURCE}/scalariform-${REPO_SUFFIX}
 	mkdir ${SOURCE}/scalariform-${REPO_SUFFIX}
@@ -327,7 +320,7 @@ function build_ide()
     then
       export SET_VERSIONS="true"
     fi
-	./build-all.sh -P ${scala_profile_ide} -Dscala.version=${SCALA_VERSION} -Drepo.scala-ide.root="file:${SOURCE}" -Dversion.tag=${VERSION_TAG} clean install
+	./build-all.sh -P ${scala_profile_ide} -Dscala.version=${SCALA_VERSION} -Drepo.scala-ide.root="file:/${SOURCE}" -Drepo.typesafe="file:/${LOCAL_REPO}" -Dmaven.repo.local=${LOCAL_REPO} -Dversion.tag=${VERSION_TAG} clean install
 	cd ${BASE_DIR}
 }
 
@@ -490,25 +483,24 @@ assert_version_tag_not_empty
 
 # These are currently non-overridable defaults
 SBINARY_GIT_REPO=git://github.com/scala-ide/sbinary.git
-SBT_GIT_REPO=git://github.com/harrah/xsbt.git
 SCALA_IDE_GIT_REPO=git://github.com/scala-ide/scala-ide.git
 
-if [[ ( -z "$SCALARIFORM_GIT_REPO" ) && ( -z "$SCALA_REFACTORING_GIT_REPO" ) ]]
+if [[ ( -z "$SCALARIFORM_GIT_REPO" ) && ( -z "$SCALA_REFACTORING_GIT_REPO" ) && ( -z "$SBT_GIT_REPO" ) ]]
 then
   read -n1 -p "Do you want to build the IDE dependencies using the original repositories, or the GitHub forks under the scala-ide organization? (o/f): " original_or_fork; echo;
   case "$original_or_fork" in
 	o ) 
 		debug "Using the original repositories"
 		SCALARIFORM_GIT_REPO=git://github.com/mdr/scalariform.git
-		SCALA_REFACTORING_GIT_REPO=git://git.assembla.com/scala-refactoring.git
+		SCALA_REFACTORING_GIT_REPO=git://github.com/scala-ide/scala-refactoring.git
+		SBT_GIT_REPO=git://github.com/harrah/xsbt.git
 		;;
 		
 	f ) 
 		debug "Using the GitHub forks for $SCALARIFORM_DIR and $SCALA_REFACTORING_DIR"
-		SCALARIFORM_FORK_GIT_REPO=git://github.com/scala-ide/scalariform.git
-		SCALA_REFACTORING_FORK_GIT_REPO=git://github.com/scala-ide/scala-refactoring.git
-		SCALARIFORM_GIT_REPO=$SCALARIFORM_FORK_GIT_REPO
-		SCALA_REFACTORING_GIT_REPO=$SCALA_REFACTORING_FORK_GIT_REPO
+		SCALARIFORM_GIT_REPO=git://github.com/scala-ide/scalariform.git
+		SCALA_REFACTORING_GIT_REPO=git://github.com/scala-ide/scala-refactoring.git
+		SBT_GIT_REPO=git://github.com/scala-ide/xsbt.git
 		;;
 		
 	*)
@@ -522,12 +514,6 @@ clone_git_repo_if_needed ${SBT_GIT_REPO} ${SBT_DIR}
 clone_git_repo_if_needed ${SCALA_IDE_GIT_REPO} ${SCALAIDE_DIR}
 clone_git_repo_if_needed ${SCALARIFORM_GIT_REPO} ${SCALARIFORM_DIR}
 clone_git_repo_if_needed ${SCALA_REFACTORING_GIT_REPO} ${SCALA_REFACTORING_DIR}
-
-
-# Selecting branches/tags to build
-
-SBT_BRANCH=0.13
-SBINARY_BRANCH=master
 
 if [[ ( -z "$SCALA_IDE_BRANCH" ) ]]
 then
@@ -548,6 +534,20 @@ then
   read -p "What branch/tag should I use for building ${SCALA_REFACTORING_DIR}: " scala_refactoring_branch;
   SCALA_REFACTORING_BRANCH=$scala_refactoring_branch
   assert_branch_in_repo_verbose $SCALA_REFACTORING_BRANCH $SCALA_REFACTORING_GIT_REPO
+fi
+
+if [[ ( -z "$SBINARY_BRANCH" ) ]]
+then
+  read -p "What branch/tag should I use for building ${SBINARY_DIR}: " sbinary_branch;
+  SBINARY_BRANCH=$sbinary_branch
+  assert_branch_in_repo_verbose $SBINARY_BRANCH $SBINARY_GIT_REPO
+fi
+
+if [[ ( -z "$SBT_BRANCH" ) ]]
+then
+  read -p "What branch/tag should I use for building ${SBT_DIR}: " sbt_branch;
+  SBT_BRANCH=$sbt_branch
+  assert_branch_in_repo_verbose $SBT_BRANCH $SBT_GIT_REPO
 fi
 
 echo -e "Build configuration:"
