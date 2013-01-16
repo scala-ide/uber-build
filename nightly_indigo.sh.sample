@@ -1,0 +1,17 @@
+#!/bin/bash -e
+
+# To produce a nightly (unsigned) build of the Scala IDE with Scala 2.10.1-SNAPSHOT alone, for Eclipse
+# 3.7 (Indigo), run the following
+
+./build-full-ide.sh \
+    ECLIPSE_PLATFORM=indigo \
+    VERSION_TAG=nightly \
+    SCALA_VERSION=2.10.1-SNAPSHOT \
+    SBINARY_BRANCH=scala-ide-2.1.0-m3 \
+    SBT_GIT_REPO=git://github.com/scala-ide/xsbt.git \
+    SBT_BRANCH=scala-ide-2.1.0-m3 \
+    SCALARIFORM_GIT_REPO=git://github.com/scala-ide/scalariform.git \
+    SCALARIFORM_BRANCH=scala-ide-2.1.0-m3 \
+    SCALA_REFACTORING_GIT_REPO=https://github.com/scala-ide/scala-refactoring \
+    SCALA_REFACTORING_BRANCH=scala-ide-2.1.0-m3 \
+    SCALA_IDE_BRANCH=master

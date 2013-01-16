@@ -1,7 +1,12 @@
+m2repo/
 p2-repo/
 sbinary/
 scala-ide/
 scala-refactoring/
 scalariform/
+typesafe-ide-merge-ecosystem/
 typesafe-keystore/
-xsbt/
+sbt/
+build-tools/
+typesafe-ide/
+worksheet-plugin/
