@@ -405,9 +405,9 @@ function build_worksheet_plugin()
     cd ${WORKSHEET_DIR}
 
     # First run the task for setting the (strict) bundles' version in the MANIFEST of the Worksheet plugin
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} -DconsiderLocal=false -P set-versions -P ${worksheet_scala_profile} -P ${worksheet_eclipse_profile} -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Dtycho.style=maven --non-recursive exec:java
+	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore -P set-versions -P ${worksheet_scala_profile} -P ${worksheet_eclipse_profile} -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Dtycho.style=maven --non-recursive exec:java
     # Then build the Worksheet plugin
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} -DconsiderLocal=false -P ${worksheet_scala_profile} -P ${worksheet_eclipse_profile} -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dversion.tag=v -Dmaven.repo.local=${LOCAL_REPO} ${MAVEN_SIGN_ARGS} clean package
+	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore -P ${worksheet_scala_profile} -P ${worksheet_eclipse_profile} -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dversion.tag=v -Dmaven.repo.local=${LOCAL_REPO} ${MAVEN_SIGN_ARGS} clean package
 
     cd ${BASE_DIR}
 }
@@ -446,8 +446,8 @@ function build_typesafe_ide()
     cd ${TYPESAFE_IDE_DIR}
 
     # Build the Typesafe IDE
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} --non-recursive -Pconfigure -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.platform="" -Drepopath.scala-ide.ecosystem="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR process-resources
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.scala-ide.ecosystem="" -Drepopath.platform="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR ${MAVEN_SIGN_ARGS} clean package
+	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  --non-recursive -Pconfigure -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.platform="" -Drepopath.scala-ide.ecosystem="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR process-resources
+	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.scala-ide.ecosystem="" -Drepopath.platform="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR ${MAVEN_SIGN_ARGS} clean package
 
     cd ${BASE_DIR}
 }
