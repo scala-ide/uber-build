@@ -119,18 +119,21 @@ case $SCALA_VERSION in
     2.9.* )
         scala_profile_ide=scala-2.9.x
         worksheet_scala_profile=2.9.x
+        ECOSYSTEM_SCALA_VERSION=scala29
         REPO_SUFFIX=29x
         ;;
 
     2.10.* )
         scala_profile_ide=scala-2.10.x
         worksheet_scala_profile=2.10.x
+        ECOSYSTEM_SCALA_VERSION=scala210
         REPO_SUFFIX=210x
         ;;
 
     2.11.* )
         scala_profile_ide=scala-2.11.x
         worksheet_scala_profile=2.11.x
+        ECOSYSTEM_SCALA_VERSION=unknwon
         REPO_SUFFIX=211x
         ;;
 
@@ -151,10 +154,12 @@ case $ECLIPSE_PLATFORM in
 
     indigo )
         worksheet_eclipse_profile=indigo
+        ecosystem_platform=e37
         ;;
 
     juno )
         worksheet_eclipse_profile=juno
+        ecosystem_platform=e38
         ;;
 
     *)
@@ -226,10 +231,12 @@ SOURCE=${BASE_DIR}/p2-repo
 PLUGINS=${SOURCE}/plugins
 REPO_NAME=scala-eclipse-toolchain-osgi-${REPO_SUFFIX}
 REPO=file://${SOURCE}/${REPO_NAME}
+NEXT_BASE=${BASE_DIR}/next/base
 
 # Expected locations where to find binaries of Scala IDE and Worksheet after each of the projects has been built
 SCALA_IDE_BINARIES=${BASE_DIR}/${SCALAIDE_DIR}/org.scala-ide.sdt.update-site/target/site
 WORKSHEET_BINARIES=${BASE_DIR}/${WORKSHEET_DIR}/org.scalaide.worksheet.update-site/target/site/
+SDK_BINARIES=${BASE_DIR}/${TYPESAFE_IDE_DIR}/org.scala-ide.product/target/repository/
 
 if $SIGN_BUILD
 then
@@ -412,13 +419,14 @@ function build_worksheet_plugin()
     cd ${BASE_DIR}
 }
 
-function create_merged_update_site()
+#
+# Merge two P2 repositories
+#
+# $1 source directory
+# $2 dest directory
+function p2_merge()
 {
-    TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR=typesafe-ide-merge-ecosystem
-    rm -rf $TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR
-    mkdir -p $TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR
-
-    #build-tools project is needed to merge the Scala IDE and Worksheet update-sites
+    #build-tools project is needed to merge p2 repos
     BUILD_TOOLS_GIT_REPO=git://github.com/scala-ide/build-tools.git
     BUILD_TOOLS=master
     BUILD_TOOLS_DIR=build-tools
@@ -429,9 +437,21 @@ function create_merged_update_site()
     cd $BUILD_TOOLS_DIR
     cd maven-tool/merge-site # this folder contains the POM for merging update-sites
 
+    # Merge to update sites
+    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Drepo.source=$1 -Drepo.dest=$2 package
+
+    cd ${BASE_DIR}
+}
+
+function create_merged_update_site()
+{
+    TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR=typesafe-ide-merge-ecosystem
+    rm -rf $TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR
+    mkdir -p $TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR
+
     # Merge the Scala IDE and Worksheet update-sites in $TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Drepo.source=${SCALA_IDE_BINARIES} -Drepo.dest=${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR} package
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Drepo.source=${WORKSHEET_BINARIES} -Drepo.dest=${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR} package
+    p2_merge ${SCALA_IDE_BINARIES} ${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}
+    p2_merge ${WORKSHEET_BINARIES} ${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}
 
     cd ${BASE_DIR}
 }
@@ -446,10 +466,48 @@ function build_typesafe_ide()
     cd ${TYPESAFE_IDE_DIR}
 
     # Build the Typesafe IDE
-	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  --non-recursive -Pconfigure -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.platform="" -Drepopath.scala-ide.ecosystem="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR process-resources
-	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.scala-ide.ecosystem="" -Drepopath.platform="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR ${MAVEN_SIGN_ARGS} clean package
+    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  --non-recursive -Pconfigure -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.platform="" -Drepopath.scala-ide.ecosystem="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR process-resources
+    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.scala-ide.ecosystem="" -Drepopath.platform="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR ${MAVEN_SIGN_ARGS} clean package
 
     cd ${BASE_DIR}
+}
+
+function prepare_nextBase()
+{
+    print_step "Preparing next base site in ${NEXT_BASE}"
+
+    rm -rf ${NEXT_BASE}
+    mkdir -p ${NEXT_BASE}
+
+    p2_merge ${SCALA_IDE_BINARIES} ${NEXT_BASE}
+    p2_merge ${SDK_BINARIES} ${NEXT_BASE}
+}
+
+# Publish to download.scala-ide.org
+# $1 - root, "sdk" or "sdk/next"
+# $2 - platform, "e37" or "e38"
+# $3 - path, "dev" or "stable"
+function publish_nextBase()
+{
+    upload_dir="scala-ide.dreamhosters.com/$1/$2/${ECOSYSTEM_SCALA_VERSION}/$3/base"
+
+    print_step "Publishing to $upload_dir"
+    ssh scalaide@scala-ide.dreamhosters.com rm -rf $upload_dir
+    scp -r $NEXT_BASE scalaide@scala-ide.dreamhosters.com:$upload_dir
+    ssh scalaide@scala-ide.dreamhosters.com chmod -R g+rw $upload_dir
+}
+
+# Publish to download.scala-ide.org
+# $1 - root, "releases" or "test"
+# $2 - platform, "e37" or "e38"
+function publish_worksheet()
+{
+    upload_dir="scala-ide.dreamhosters.com/plugins/worksheet/$1/$2/${worksheet_scala_profile}/site"
+
+    print_step "Publishing to $upload_dir"
+    ssh scalaide@scala-ide.dreamhosters.com rm -rf $upload_dir
+    scp -r $WORKSHEET_BINARIES scalaide@scala-ide.dreamhosters.com:$upload_dir
+    ssh scalaide@scala-ide.dreamhosters.com chmod -R g+rw $upload_dir
 }
 
 function build_plugins()
@@ -688,15 +746,15 @@ echo -e "Version tag       : ${VERSION_TAG}"
 echo -e "P2 repo           : ${SOURCE}"
 echo -e "Toolchain repo    : ${REPO}"
 
-echo -e "SBinary           : ${SBINARY_DIR}, branch: ${SBINARY_BRANCH}, repo: ${SBINARY_GIT_REPO}"
-echo -e "Sbt               : ${SBT_DIR}, branch: ${SBT_BRANCH}, repo: ${SBT_GIT_REPO}"
-echo -e "Scalariform       : ${SCALARIFORM_DIR}, branch: ${SCALARIFORM_BRANCH}, repo: ${SCALARIFORM_GIT_REPO}"
-echo -e "Scala-refactoring : ${SCALA_REFACTORING_DIR}, branch: ${SCALA_REFACTORING_BRANCH}, repo: ${SCALA_REFACTORING_GIT_REPO}"
-echo -e "Scala IDE         : ${SCALAIDE_DIR}, branch: ${SCALA_IDE_BRANCH}, repo: ${SCALA_IDE_GIT_REPO}"
+echo -e "SBinary           : ${SBINARY_DIR}, \t\tbranch: ${SBINARY_BRANCH}, repo: ${SBINARY_GIT_REPO}"
+echo -e "Sbt               : ${SBT_DIR}, \t\tbranch: ${SBT_BRANCH}, repo: ${SBT_GIT_REPO}"
+echo -e "Scalariform       : ${SCALARIFORM_DIR}, \tbranch: ${SCALARIFORM_BRANCH}, repo: ${SCALARIFORM_GIT_REPO}"
+echo -e "Scala-refactoring : ${SCALA_REFACTORING_DIR}, \tbranch: ${SCALA_REFACTORING_BRANCH}, repo: ${SCALA_REFACTORING_GIT_REPO}"
+echo -e "Scala IDE         : ${SCALAIDE_DIR}, \t\tbranch: ${SCALA_IDE_BRANCH}, repo: ${SCALA_IDE_GIT_REPO}"
 if $BUILD_PLUGINS
 then
-    echo -e "Worksheet         : ${WORKSHEET_DIR}, branch: ${WORKSHEET_BRANCH}, repo: ${WORKSHEET_GIT_REPO}"
-    echo -e "Typesafe IDE      : ${TYPESAFE_IDE_DIR}, branch: ${TYPESAFE_IDE_BRANCH}, repo: ${TYPESAFE_IDE_GIT_REPO}"
+    echo -e "Worksheet         : ${WORKSHEET_DIR}, \tbranch: ${WORKSHEET_BRANCH}, repo: ${WORKSHEET_GIT_REPO}"
+    echo -e "Typesafe IDE      : ${TYPESAFE_IDE_DIR}, \tbranch: ${TYPESAFE_IDE_BRANCH}, repo: ${TYPESAFE_IDE_GIT_REPO}"
 fi
 echo -e "----------------------------------------------\n"
 
@@ -728,4 +786,25 @@ fi
 if $BUILD_PLUGINS
 then
     build_plugins
+fi
+
+prepare_nextBase
+
+if [[ -z "$PUBLISH" ]]
+then
+    debug "Not publishing anything"
+else
+    case $PUBLISH in
+
+        dev )
+    	    publish_nextBase "sdk/next" $ecosystem_platform "dev"
+            ;;
+
+        stable )
+   	    publish_nextBase "sdk/next" $ecosystem_platform "stable"
+            ;;
+        *)
+            debug "Not publishing base"
+    esac
+    publish_worksheet "releases" $ecosystem_platform
 fi

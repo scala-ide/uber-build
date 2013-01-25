@@ -23,10 +23,9 @@ For usage examples, have a look at the ``.sample`` scripts in the project's root
 
 ## Assumptions
 
-There are actually very few assumptions, and the script will usually provide specific
-errors if you forget to set a required variable. Probably, the only real assumption worth
-mentioning is that the different projects have to be built in a specific order, and this
-order is implicitly defined in the script itself.
+If want to publish binaries to the staging website you need to enable
+SSH authentication with your public key for the scalaide user on our
+dreamhost server.
 
 ## Warning Note
 
