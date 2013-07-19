@@ -1,0 +1,22 @@
+#!/bin/bash -e
+
+# To produce a nightly (unsigned) build of the Scala IDE with Scala 2.11.0-SNAPSHOT alone, for Eclipse
+# 3.8 (Juno), run the following
+
+./build-full-ide.sh ECLIPSE_PLATFORM=juno \
+    VERSION_TAG=b02 \
+    SCALA_VERSION=2.11.0-M4 \
+    SBINARY_BRANCH=0.4.2-S_4.0.0-b02 \
+    SBT_GIT_REPO=git://github.com/scala-ide/xsbt \
+    SBT_BRANCH=v0.13.0-RC2 \
+    SBT_VERSION=0.13.0-RC2 \
+    SCALARIFORM_GIT_REPO=git://github.com/scala-ide/scalariform.git \
+    SCALARIFORM_BRANCH=scala-ide-3.0.1\
+    SCALA_REFACTORING_GIT_REPO=git://github.com/scala-ide/scala-refactoring \
+    SCALA_REFACTORING_BRANCH=0.6.2-S_4.0.0-b02 \
+    SCALA_IDE_BRANCH=4.0.0-b02 \
+    WORKSHEET_BRANCH=0.2.1-S_4.0.0-b02 \
+    WORKSHEET_VERSION_TAG=b01 \
+    TYPESAFE_IDE_VERSION_TAG=4.0.0-b02 \
+    BUILD_PLUGINS=true \
+    PUBLISH=dev

@@ -14,6 +14,8 @@
 : ${MAVEN_EXTRA_ARGS:=}           # Maven extra arguments, like --batch (for Jenkins)
 : ${GIT:=git}                     # Git executable
 : ${KEYTOOL=keytool}              # Needed for signing the JARs
+: ${DONT_CHECK_PLUGIN_CONFIG:=}   # Whether plugin configuration
+                                  # should be checked w.r.t. Scala version
 
 : ${SIGN_BUILD:=false}            # Should the IDE and its dependencies be signed. If you enable this, make sure to also provide a value for KEYSTORE_GIT_REPO and KEYSTORE_PASS, or the script will ask the user for these inputs
 : ${KEYSTORE_GIT_REPO:=}          # URL to the Keystore Git repository
@@ -22,7 +24,7 @@
 : ${VERSION_TAG:=}                # Version suffix to be appended to the IDE version number. When building a signed IDE, make sure to provide a value for the VERSION_TAG
 
 : ${SCALA_VERSION:=}              # Scala version to use to build the IDE and all its dependencies
-: ${SCALA_IDE_GIT_REPO:=git://github.com/scala-ide/scala-ide.git} # Git repository to use to build Scala IDE 
+: ${SCALA_IDE_GIT_REPO:=git://github.com/scala-ide/scala-ide.git} # Git repository to use to build Scala IDE
 : ${SCALA_IDE_BRANCH:=}           # Scala IDE branch/tag to build
 : ${SCALARIFORM_GIT_REPO:=}       # Git repository to use to build scalariform
 : ${SCALARIFORM_BRANCH:=}         # Scalariform branch/tag to build
@@ -35,15 +37,33 @@
 : ${REFACTORING_MAVEN_ARGS:=""}   # Pass some maven argument to the scala-refactoring build, e.g. -Dmaven.test.skip=true
 
 : ${ECLIPSE_PLATFORM:=}           # Pass the Eclipse platform (e.g., "indigo", or "juno")
-: ${BUILD_PLUGINS:=false}         # Should we build worksheet and the Typesafe IDE product as well.
+: ${BUILD_PLUGINS:=}              # Should we build worksheet, play plugin and the Typesafe IDE product as well.
+
 : ${WORKSHEET_GIT_REPO:=git://github.com/scala-ide/scala-worksheet.git} # Git repostory to use to build Scala Worksheet
 : ${WORKSHEET_BRANCH:=}           # Worksheet branch/tag to build
 : ${WORKSHEET_VERSION_TAG:=v}     # Tag to add to the worksheet version
+
+: ${PLAY_GIT_REPO:=git://github.com/scala-ide/scala-ide-play2.git} # Git repostory to use to build ScalaIDE Play plugin
+: ${PLAY_BRANCH:=}                # Play plugin branch/tag to build
+: ${PLAY_VERSION_TAG:=v}          # Tag to add to the Play plugin version
+
+: ${SCALASEARCH_GIT_REPO:=git://github.com/scala-ide/scala-search.git} # Git repostory to use to build ScalaIDE Play plugin
+: ${SCALASEARCH_BRANCH:=}         # ScalaSearch plugin branch/tag to build
+: ${SCALASEARCH_VERSION_TAG:=v}   # Tag to add to the ScalaSearch plugin version
+
 : ${TYPESAFE_IDE_BRANCH:=master}  # Typesafe IDE branch/tag to build (default is master)
 : ${TYPESAFE_IDE_VERSION_TAG:=}   # Typesafe IDE version tag
 
+###################
+# Local Variables #
+###################
+
 export MAVEN_OPTS="-Xmx1500m"
 export "$@" > /dev/null
+
+: ${PLAY_BUILDIT:=}               # whether to build the Play plugin
+: ${WORKSHEET_BUILDIT:=}          # whether to build the Worksheet plugin
+: ${SCALASEARCH_BUILDIT:=}        # whether to build the ScalaSearch plugin
 
 ###############################################################
 #                          Global Methods                     #
@@ -104,6 +124,17 @@ function debug()
     fi
 }
 
+# Check that the user is not building plugins by mistake
+function are_you_sure()
+{
+    echo "You have \$BUILD_PLUGINS=$BUILD_PLUGINS and \$SCALA_VERSION=$SCALA_VERSION."
+    read -p "Do you really want to build plugins with the unsupported $SCALA_VERSION ? [y/N]" response
+    if [[ ! $response =~ ^([yY][eE][sS]|[yY])$ ]]
+    then
+        $BUILD_PLUGINS=""
+    fi
+}
+
 if [[ $DEBUG ]]
 then
     print_own_arguments "$@"
@@ -120,16 +151,11 @@ fi
 
 case $SCALA_VERSION in
 
-    2.9.* )
-        scala_profile_ide=scala-2.9.x
-        worksheet_scala_profile=2.9.x
-        ECOSYSTEM_SCALA_VERSION=scala29
-        REPO_SUFFIX=29x
-        ;;
-
     2.10.* )
         scala_profile_ide=scala-2.10.x
         worksheet_scala_profile=2.10.x
+        play_scala_profile=2.10.x
+        scalasearch_scala_profile=2.10.x
         ECOSYSTEM_SCALA_VERSION=scala210
         REPO_SUFFIX=210x
         ;;
@@ -137,8 +163,11 @@ case $SCALA_VERSION in
     2.11.* )
         scala_profile_ide=scala-2.11.x
         worksheet_scala_profile=2.11.x
+        play_scala_profile=2.11.x
+        scalasearch_scala_profile=2.11.x
         ECOSYSTEM_SCALA_VERSION=scala211
         REPO_SUFFIX=211x
+        if [[ $BUILD_PLUGINS ]] && [[ -z $DONT_CHECK_PLUGIN_CONFIG ]]; then are_you_sure; fi
         ;;
 
     *)
@@ -159,12 +188,16 @@ case $ECLIPSE_PLATFORM in
     indigo )
         eclipse_profile=eclipse-indigo
         worksheet_eclipse_profile=eclipse-indigo
+        play_eclipse_profile=eclipse-indigo
+        scalasearch_eclipse_profile=eclipse-indigo
         ecosystem_platform=e37
         ;;
 
     juno )
         eclipse_profile=eclipse-juno
         worksheet_eclipse_profile=eclipse-juno
+        play_eclipse_profile=eclipse-juno
+        scalasearch_eclipse_profile=eclipse-juno
         ecosystem_platform=e38
         ;;
 
@@ -230,6 +263,8 @@ SCALA_REFACTORING_DIR=scala-refactoring
 SBINARY_DIR=sbinary
 SBT_DIR=sbt
 WORKSHEET_DIR=worksheet-plugin
+PLAY_DIR=scala-ide-play2
+SCALASEARCH_DIR=scala-search
 TYPESAFE_IDE_DIR=typesafe-ide
 KEYSTORE_FOLDER=typesafe-keystore
 
@@ -246,9 +281,11 @@ NEXT_BASE=${BASE_DIR}/next/base
 # Expected locations where to find binaries of Scala IDE and Worksheet after each of the projects has been built
 SCALA_IDE_BINARIES=${BASE_DIR}/${SCALAIDE_DIR}/org.scala-ide.sdt.update-site/target/site
 WORKSHEET_BINARIES=${BASE_DIR}/${WORKSHEET_DIR}/org.scalaide.worksheet.update-site/target/site/
+PLAY_BINARIES=${BASE_DIR}/${PLAY_DIR}/org.scala-ide.play2.update-site/target/site/
+SCALASEARCH_BINARIES=${BASE_DIR}/${SCALASEARCH_DIR}/org.scala.tools.eclipse.search.update-site/target/site/
 SDK_BINARIES=${BASE_DIR}/${TYPESAFE_IDE_DIR}/org.scala-ide.product/target/repository/
 
-if $SIGN_BUILD
+if [[ $SIGN_BUILD ]]
 then
     MAVEN_SIGN_ARGS=" -Djarsigner.storepass=${KEYSTORE_PASS} -Djarsigner.keypass=${KEYSTORE_PASS} -Djarsigner.keystore=/${KEYSTORE_PATH} "
 fi
@@ -382,7 +419,7 @@ function build_ide()
 
     cd ${SCALAIDE_DIR}
 
-    if $SIGN_BUILD
+    if [[ $SIGN_BUILD ]]
     then
       export SET_VERSIONS="true"
     fi
@@ -409,16 +446,22 @@ function sign_ide()
     cd ${BASE_DIR}
 }
 
-function build_worksheet_plugin()
+function build_plugin()
 {
-    print_step "Building Worksheet"
+    # $1 : plugin's pretty name
+    # $2 : plugin's build dir
+    # $3 : plugin's eclipse profile (indigo, juno ...)
+    # $4 : plugin's version tag
 
-    cd ${WORKSHEET_DIR}
+    print_step "Building $1"
+    cd $2
 
-    # First run the task for setting the (strict) bundles' version in the MANIFEST of the Worksheet plugin
-	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore -P set-versions -P ${scala_profile_ide} -P ${worksheet_eclipse_profile} -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Dtycho.style=maven --non-recursive exec:java
-    # Then build the Worksheet plugin
-	${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore -P ${scala_profile_ide} -P ${worksheet_eclipse_profile} -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dversion.tag=${WORKSHEET_VERSION_TAG} -Dmaven.repo.local=${LOCAL_REPO} ${MAVEN_SIGN_ARGS} clean package
+    # First run the task for setting the (strict) bundles'
+    # version in the MANIFEST of the plugin
+    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore -P set-versions -P ${scala_profile_ide} -P $3 -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Dtycho.style=maven --non-recursive exec:java
+
+    # Then build the plugin
+    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore -P ${scala_profile_ide} -P $3 -Drepo.scala-ide=file://${SCALA_IDE_BINARIES} -Dscala.version=${SCALA_VERSION} -Dversion.tag=$4 -Dmaven.repo.local=${LOCAL_REPO} ${MAVEN_SIGN_ARGS} clean package
 
     cd ${BASE_DIR}
 }
@@ -455,7 +498,15 @@ function create_merged_update_site()
 
     # Merge the Scala IDE and Worksheet update-sites in $TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR
     p2_merge ${SCALA_IDE_BINARIES} ${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}
-    p2_merge ${WORKSHEET_BINARIES} ${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}
+    if [ $WORKSHEET_BUILDIT ]; then
+        p2_merge ${WORKSHEET_BINARIES} ${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}
+    fi
+    if [ $PLAY_BUILDIT ]; then
+        p2_merge ${PLAY_BINARIES} ${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}
+    fi
+    if [ $SCALASEARCH_BUILDIT ]; then
+        p2_merge ${SCALASEARCH_BINARIES} ${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}
+    fi
 
     cd ${BASE_DIR}
 }
@@ -464,7 +515,8 @@ function build_typesafe_ide()
 {
     print_step "Building Typesafe IDE"
 
-    # First create a base ecosystem update-site that contains both the Scala IDE and Worksheet plugins
+    # First create a base ecosystem update-site that contains
+    # both the Scala IDE and Worksheet and Play plugins
     create_merged_update_site
 
     cd ${TYPESAFE_IDE_DIR}
@@ -484,7 +536,7 @@ function prepare_nextBase()
     mkdir -p ${NEXT_BASE}
 
     p2_merge ${SCALA_IDE_BINARIES} ${NEXT_BASE}
-    if $BUILD_PLUGINS
+    if [[ $BUILD_PLUGINS ]]
     then
         p2_merge ${SDK_BINARIES} ${NEXT_BASE}
     fi
@@ -507,19 +559,31 @@ function publish_nextBase()
 # Publish to download.scala-ide.org
 # $1 - root, "releases" or "test"
 # $2 - platform, "e37" or "e38"
-function publish_worksheet()
+# $3 - plugin's scala-profile
+# $4 - plugin's binary directory
+# $5 - plugin name on the destination
+# example for publishing an indigo version of play:
+# publish_plugin releases e37 eclipse-indigo $PLAY_BINARIES scala-ide-play2
+function publish_plugin()
 {
-    upload_dir="scala-ide.dreamhosters.com/plugins/worksheet/$1/$2/${worksheet_scala_profile}/site"
-
+    upload_dir="scala-ide.dreamhosters.com/plugins/$5/$1/$2/$3/site"
     print_step "Publishing to $upload_dir"
     ssh scalaide@scala-ide.dreamhosters.com rm -rf $upload_dir
-    scp -r $WORKSHEET_BINARIES scalaide@scala-ide.dreamhosters.com:$upload_dir
+    scp -r $4 scalaide@scala-ide.dreamhosters.com:$upload_dir
     ssh scalaide@scala-ide.dreamhosters.com chmod -R g+rw $upload_dir
 }
 
 function build_plugins()
 {
-    build_worksheet_plugin
+    if [ $WORKSHEET_BUILDIT ]; then
+        build_plugin "Worksheet" ${WORKSHEET_DIR} ${worksheet_eclipse_profile} ${WORKSHEET_VERSION_TAG}
+    fi
+    if [ $PLAY_BUILDIT ]; then
+        build_plugin "Play Plugin" ${PLAY_DIR} ${play_eclipse_profile} ${PLAY_VERSION_TAG}
+    fi
+    if [ $SCALASEARCH_BUILDIT ]; then
+        build_plugin "Scala Search" ${SCALASEARCH_DIR} ${scalasearch_eclipse_profile} ${SCALASEARCH_VERSION_TAG}
+    fi
     build_typesafe_ide
 }
 
@@ -549,9 +613,10 @@ function exist_branch_in_repo()
     BRANCH=$1
     GIT_REPO=$2
 
-    ESCAPED_BRANCH=`echo $BRANCH | sed -e 's/[\/&]/\\\&/g'`
+    ESCAPED_BRANCH=${BRANCH/\/&/\\\&}
+    debug $ESCAPED_BRANCH
     # Checks if it exists a remote branch that matches ESCAPED_BRANCH
-    REMOTES=`$GIT ls-remote $GIT_REPO | awk '/'$ESCAPED_BRANCH'/ {print $2}'`
+    REMOTES=`$GIT ls-remote --heads --tags $GIT_REPO | awk '/\/'$ESCAPED_BRANCH'$/ {print $2}'`
     if [[ "$REMOTES" ]]; then
         return 0
     else
@@ -565,7 +630,7 @@ function exist_branch_in_repo_verbose()
     GIT_REPO=$2
 
     debug "Checking if branch $BRANCH exists in git repo ${GIT_REPO}..."
-    if exist_branch_in_repo $BRANCH $GIT_REPO
+    if exist_branch_in_repo $@
     then
         debug "Branch found!"
         return 0
@@ -577,9 +642,7 @@ function exist_branch_in_repo_verbose()
 
 function assert_branch_in_repo_verbose()
 {
-    BRANCH=$1
-    GIT_REPO=$2
-    (exist_branch_in_repo_verbose $BRANCH $GIT_REPO) || abort
+    (exist_branch_in_repo_verbose $@) || abort
 }
 
 # Check that there are no uncommitted changes in $1
@@ -629,7 +692,7 @@ function checkout_git_repo()
 #                          SIGNING                            #
 ###############################################################
 
-if $SIGN_BUILD
+if [[ $SIGN_BUILD ]]
 then
     assert_executable_in_path ${KEYTOOL} # Check that keytool executable is available
     assert_version_tag_not_empty
@@ -698,50 +761,94 @@ then
   esac
 fi
 
-clone_git_repo_if_needed ${SBINARY_GIT_REPO} ${SBINARY_DIR}
-clone_git_repo_if_needed ${SBT_GIT_REPO} ${SBT_DIR}
-clone_git_repo_if_needed ${SCALA_IDE_GIT_REPO} ${SCALAIDE_DIR}
-clone_git_repo_if_needed ${SCALARIFORM_GIT_REPO} ${SCALARIFORM_DIR}
-clone_git_repo_if_needed ${SCALA_REFACTORING_GIT_REPO} ${SCALA_REFACTORING_DIR}
-clone_git_repo_if_needed ${WORKSHEET_GIT_REPO} ${WORKSHEET_DIR}
-clone_git_repo_if_needed ${TYPESAFE_IDE_GIT_REPO} ${TYPESAFE_IDE_DIR}
-
 if [[ ( -z "$SCALA_IDE_BRANCH" ) ]]; then
     read -p "What branch/tag should I use for building the ${SCALAIDE_DIR}: " scala_ide_branch;
     SCALA_IDE_BRANCH=$scala_ide_branch
-    assert_branch_in_repo_verbose $SCALA_IDE_BRANCH $SCALA_IDE_GIT_REPO
+    assert_branch_in_repo_verbose ${SCALA_IDE_BRANCH} ${SCALA_IDE_GIT_REPO}
 fi
 
 if [[ ( -z "$SCALARIFORM_BRANCH" ) ]]; then
     read -p "What branch/tag should I use for building ${SCALARIFORM_DIR}: " scalariform_branch;
     SCALARIFORM_BRANCH=$scalariform_branch
-    assert_branch_in_repo_verbose $SCALARIFORM_BRANCH $SCALARIFORM_GIT_REPO
+    assert_branch_in_repo_verbose ${SCALARIFORM_BRANCH} ${SCALARIFORM_GIT_REPO}
 fi
 
 if [[ ( -z "$SCALA_REFACTORING_BRANCH" ) ]]; then
     read -p "What branch/tag should I use for building ${SCALA_REFACTORING_DIR}: " scala_refactoring_branch;
     SCALA_REFACTORING_BRANCH=$scala_refactoring_branch
-    assert_branch_in_repo_verbose $SCALA_REFACTORING_BRANCH $SCALA_REFACTORING_GIT_REPO
+    assert_branch_in_repo_verbose ${SCALA_REFACTORING_BRANCH} ${SCALA_REFACTORING_GIT_REPO}
 fi
 
 if [[ ( -z "$SBINARY_BRANCH" ) ]]; then
     read -p "What branch/tag should I use for building ${SBINARY_DIR}: " sbinary_branch;
     SBINARY_BRANCH=$sbinary_branch
-    assert_branch_in_repo_verbose $SBINARY_BRANCH $SBINARY_GIT_REPO
+    assert_branch_in_repo_verbose ${SBINARY_BRANCH} ${SBINARY_GIT_REPO}
 fi
 
 if [[ ( -z "$SBT_BRANCH" ) ]]; then
     read -p "What branch/tag should I use for building ${SBT_DIR}: " sbt_branch;
     SBT_BRANCH=$sbt_branch
-    assert_branch_in_repo_verbose $SBT_BRANCH $SBT_GIT_REPO
+    assert_branch_in_repo_verbose ${SBT_BRANCH} ${SBT_GIT_REPO}
 fi
 
-if $BUILD_PLUGINS && [[ -z "$WORKSHEET_BRANCH" ]]
-then
-    read -p "What branch/tag should I use for building ${WORKSHEET_DIR}: " worksheet_branch;
-    WORKSHEET_BRANCH=$worksheet_branch
-    assert_branch_in_repo_verbose $WORKSHEET_BRANCH $WORKSHEET_GIT_REPO
+if [[ ( $BUILD_PLUGINS ) && (-z "$WORKSHEET_BRANCH )" && ( -z "$PLAY_BRANCH" ) && ( -z "$SCALASEARCH_BRANCH" ) ]]
+    echo "You have \$BUILD_PLUGINS=$BUILD_PLUGINS and no plugin branch specified !"
+    read -p "Do you want to build the Worksheet plugin ? [y/N]" response
+    if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+    then
+        WORKSHEET_BUILDIT="true"
+        read -p "What branch/tag should I use for building ${WORKSHEET_DIR}: " worksheet_branch;
+        WORKSHEET_BRANCH=$worksheet_branch
+        assert_branch_in_repo_verbose ${WORKSHEET_BRANCH} ${WORKSHEET_GIT_REPO}
+    fi
+    read -p "Do you want to build the Play plugin ? [y/N]" response
+    if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+    then
+        PLAY_BUILDIT="true"
+        read -p "What branch/tag should I use for building ${PLAY_DIR}: " play_branch;
+        PLAY_BRANCH=$play_branch
+        assert_branch_in_repo_verbose ${PLAY_BRANCH} ${PLAY_GIT_REPO}
+    fi
+    read -p "Do you want to build the ScalaSearch plugin ? [y/N]" response
+    if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+    then
+        SCALASEARCH_BUILDIT="true"
+        read -p "What branch/tag should I use for building ${SCALASEARCH_DIR}: " scalasearch_branch;
+        SCALASEARCH_BRANCH=$scalasearch_branch
+        assert_branch_in_repo_verbose ${SCALASEARCH_BRANCH} ${SCALASEARCH_GIT_REPO}
+    fi
+else
+    if [ $BUILD_PLUGINS ]; then
+        if [[ ! -z $WORKSHEET_BRANCH ]]; then
+            WORKSHEET_BUILDIT="true"
+            assert_branch_in_repo_verbose ${WORKSHEET_BRANCH} ${WORKSHEET_GIT_REPO}
+        fi
+        if [[ ! -z $PLAY_BRANCH ]]; then
+            PLAY_BUILDIT="true"
+            assert_branch_in_repo_verbose ${PLAY_BRANCH} ${PLAY_GIT_REPO}
+        fi
+        if [[ ! -z $SCALASEARCH_BRANCH ]]; then
+            SCALASEARCH_BUILDIT="true"
+            assert_branch_in_repo_verbose ${SCALASEARCH_BRANCH} ${SCALASEARCH_GIT_REPO}
+        fi
+    fi
 fi
+
+clone_git_repo_if_needed ${SBINARY_GIT_REPO} ${SBINARY_DIR}
+clone_git_repo_if_needed ${SBT_GIT_REPO} ${SBT_DIR}
+clone_git_repo_if_needed ${SCALA_IDE_GIT_REPO} ${SCALAIDE_DIR}
+clone_git_repo_if_needed ${SCALARIFORM_GIT_REPO} ${SCALARIFORM_DIR}
+clone_git_repo_if_needed ${SCALA_REFACTORING_GIT_REPO} ${SCALA_REFACTORING_DIR}
+if [ $WORKSHEET_BUILDIT ]; then
+    clone_git_repo_if_needed ${WORKSHEET_GIT_REPO} ${WORKSHEET_DIR}
+fi
+if [ $PLAY_BUILDIT ]; then
+    clone_git_repo_if_needed ${PLAY_GIT_REPO} ${PLAY_DIR}
+fi
+if [ $SCALASEARCH_BUILDIT ]; then
+    clone_git_repo_if_needed ${SCALASEARCH_GIT_REPO} ${SCALASEARCH_DIR}
+fi
+clone_git_repo_if_needed ${TYPESAFE_IDE_GIT_REPO} ${TYPESAFE_IDE_DIR}
 
 echo -e "Build configuration:"
 echo -e "----------------------------------------------\n"
@@ -756,9 +863,11 @@ echo -e "Sbt               : ${SBT_DIR}, \t\tbranch: ${SBT_BRANCH}, repo: ${SBT_
 echo -e "Scalariform       : ${SCALARIFORM_DIR}, \tbranch: ${SCALARIFORM_BRANCH}, repo: ${SCALARIFORM_GIT_REPO}"
 echo -e "Scala-refactoring : ${SCALA_REFACTORING_DIR}, \tbranch: ${SCALA_REFACTORING_BRANCH}, repo: ${SCALA_REFACTORING_GIT_REPO}"
 echo -e "Scala IDE         : ${SCALAIDE_DIR}, \t\tbranch: ${SCALA_IDE_BRANCH}, repo: ${SCALA_IDE_GIT_REPO}"
-if $BUILD_PLUGINS
+if [[ $BUILD_PLUGINS ]]
 then
     echo -e "Worksheet         : ${WORKSHEET_DIR}, \tbranch: ${WORKSHEET_BRANCH}, repo: ${WORKSHEET_GIT_REPO}"
+    echo -e "Play plugin       : ${PLAY_DIR}, \tbranch: ${PLAY_BRANCH}, repo: ${PLAY_GIT_REPO}"
+    echo -e "ScalaSearch       : ${SCALASEARCH_DIR}, \tbranch: ${SCALASEARCH_BRANCH}, repo: ${SCALASEARCH_GIT_REPO}"
     echo -e "Typesafe IDE      : ${TYPESAFE_IDE_DIR}, \tbranch: ${TYPESAFE_IDE_BRANCH}, repo: ${TYPESAFE_IDE_GIT_REPO}"
 fi
 echo -e "----------------------------------------------\n"
@@ -769,9 +878,17 @@ checkout_git_repo ${SCALA_IDE_GIT_REPO} ${SCALAIDE_DIR} ${SCALA_IDE_BRANCH}
 checkout_git_repo ${SCALARIFORM_GIT_REPO} ${SCALARIFORM_DIR} ${SCALARIFORM_BRANCH}
 checkout_git_repo ${SCALA_REFACTORING_GIT_REPO} ${SCALA_REFACTORING_DIR} ${SCALA_REFACTORING_BRANCH}
 
-if $BUILD_PLUGINS
+if [[ $BUILD_PLUGINS ]]
 then
-    checkout_git_repo ${WORKSHEET_GIT_REPO} ${WORKSHEET_DIR} ${WORKSHEET_BRANCH}
+    if [ $WORKSHEET_BUILDIT ]; then
+        checkout_git_repo ${WORKSHEET_GIT_REPO} ${WORKSHEET_DIR} ${WORKSHEET_BRANCH}
+    fi;
+    if [ $PLAY_BUILDIT ]; then
+        checkout_git_repo ${PLAY_GIT_REPO} ${PLAY_DIR} ${PLAY_BRANCH}
+    fi
+    if [ $SCALASEARCH_BUILDIT ]; then
+        checkout_git_repo ${SCALASEARCH_GIT_REPO} ${SCALASEARCH_DIR} ${SCALASEARCH_BRANCH}
+    fi
     checkout_git_repo ${TYPESAFE_IDE_GIT_REPO} ${TYPESAFE_IDE_DIR} ${TYPESAFE_IDE_BRANCH}
     assert_typesafe_ide_version_tag_not_empty
 fi
@@ -783,12 +900,12 @@ build_refactoring
 build_scalariform
 build_ide
 
-if $SIGN_BUILD
+if [[ $SIGN_BUILD ]]
 then
     sign_ide
 fi
 
-if $BUILD_PLUGINS
+if [[ $BUILD_PLUGINS ]]
 then
     build_plugins
 fi
@@ -800,7 +917,6 @@ then
     debug "Not publishing anything"
 else
     case $PUBLISH in
-
         dev )
     	    publish_nextBase "sdk/next" $ecosystem_platform "dev"
             ;;
@@ -812,8 +928,16 @@ else
             debug "Not publishing base"
     esac
 
-    if $BUILD_PLUGINS
+    if [[ $BUILD_PLUGINS ]]
     then
-        publish_worksheet "releases" $ecosystem_platform
+        if [ $WORKSHEET_BUILDIT ]; then
+            publish_plugin "releases" $ecosystem_platform ${worksheet_scala_profile} ${WORKSHEET_BINARIES} worksheet
+        fi
+        if [ $PLAY_BUILDIT ]; then
+            publish_plugin "releases" $ecosystem_platform ${play_scala_profile} ${PLAY_BINARIES} scala-ide-play2
+        fi
+        if [ $SCALASEARCH_BUILDIT ]; then
+            publish_plugin "releases" $ecosystem_platform ${scalasearch_scala_profile} ${SCALASEARCH_BINARIES} scala-search
+        fi
     fi
 fi

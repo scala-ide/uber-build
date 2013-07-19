@@ -9,24 +9,24 @@ if [[ $# -ne 2 ]]; then
   exit 1
 fi
 
-./build-full-ide.sh \
-    ECLIPSE=/Applications/Programming/eclipse-indigo-210/eclipse \
-    ECLIPSE_PLATFORM=indigo \
-    VERSION_TAG=rc01 \
+./build-full-ide.sh ECLIPSE_PLATFORM=indigo \
+    VERSION_TAG=v \
     SCALA_VERSION=2.10.2 \
     SBINARY_BRANCH=0.4.1_SI-3.0.0-RC1 \
     SBT_GIT_REPO=git://github.com/sbt/sbt.git \
     SBT_BRANCH=v0.13.0-M2 \
     SBT_VERSION=0.13.0-M2 \
     SCALARIFORM_GIT_REPO=git://github.com/scala-ide/scalariform.git \
-    SCALARIFORM_BRANCH=scala-ide-3.0.1\
+    SCALARIFORM_BRANCH=scala-ide-3.0.1 \
     SCALA_REFACTORING_GIT_REPO=git://github.com/scala-ide/scala-refactoring \
-    SCALA_REFACTORING_BRANCH=0.6.0_SI-3.0.0-RC1_2.10.1-S \
-    SCALA_IDE_BRANCH=3.0.1-rc1 \
+    SCALA_REFACTORING_BRANCH=0.6.0_SI-3.0.1-RC2_2.10.2 \
+    SCALA_IDE_BRANCH=3.0.1-vfinal \
     WORKSHEET_BRANCH=0.2.0 \
-    TYPESAFE_IDE_VERSION_TAG=3.0.1-rc01 \
+    PLAY_BRANCH=0.3.0 \
+    SCALASEARCH_BRANCH=0.1.0 \
+    TYPESAFE_IDE_VERSION_TAG=3.0.1-vfinal \
     SIGN_BUILD=true \
     BUILD_PLUGINS=true \
     KEYSTORE_GIT_REPO=$1 \
     KEYSTORE_PASS=$2 \
-    PUBLISH=dev
+    PUBLISH=stable

@@ -27,6 +27,22 @@ If want to publish binaries to the staging website you need to enable
 SSH authentication with your public key for the scalaide user on our
 dreamhost server.
 
+## Building Plugins
+
+The script tries to build plugins after building the main Scala
+IDE if you pass it the environment variable $BUILD_PLUGINS.
+
+For each plugin you want to build among those configured (at the
+time of this writing, the worksheet, the play plugin and
+scala-search), you need ot pass a branch to build if you want to
+build said plugin. Should you omit the branch, the script will
+silently just not build the plugin.
+
+The script will only ask for confirmation of which plugin you
+want to build if you set the $BUILD_PLUGINS variable *and* do not
+pass *any* branch for any of the plugin. In that case, you will
+be asked interactive questions about each plugins in sequence.
+
 ## Warning Note
 
 When you launch the script, **all checked out repositories will be cleaned out and
