@@ -521,9 +521,19 @@ function build_typesafe_ide()
 
     cd ${TYPESAFE_IDE_DIR}
 
+    # Properties needed to add the correct update site to the product
+    REPOPATH_PLATFORM="/sdk/${ecosystem_platform}"
+    if [ -z "${PUBLISH}" ]
+    then
+      REPOPATH_PUBLISH="dev"
+    else
+      REPOPATH_PUBLISH="${PUBLISH}"
+    fi
+    REPOPATH_SCALAIDE_ECOSYSTEM="/${ECOSYSTEM_SCALA_VERSION}/${REPOPATH_PUBLISH}/site"
+
     # Build the Typesafe IDE
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  --non-recursive -Pconfigure -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.platform="" -Drepopath.scala-ide.ecosystem="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR process-resources
-    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.scala-ide.ecosystem="" -Drepopath.platform="" -Drepo.scala-ide.root=file://${BASE_DIR}/$TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR ${MAVEN_SIGN_ARGS} clean package
+    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  --non-recursive -Pconfigure -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.platform="${REPOPATH_PLATFORM}" -Drepopath.scala-ide.ecosystem="${REPOPATH_SCALAIDE_ECOSYSTEM}" process-resources
+    ${MAVEN} ${MAVEN_EXTRA_ARGS} -Dtycho.localArtifacts=ignore  -P${scala_profile_ide},${ECLIPSE_PLATFORM} -Dversion.tag=${TYPESAFE_IDE_VERSION_TAG} -Dscala.version=${SCALA_VERSION} -Dmaven.repo.local=${LOCAL_REPO} -Drepopath.scala-ide.ecosystem="" -Drepopath.platform="" -Drepo.scala-ide.root="file://${BASE_DIR}/${TYPESAFE_IDE_MERGE_ECOSYSTEM_DIR}" ${MAVEN_SIGN_ARGS} clean package
 
     cd ${BASE_DIR}
 }
