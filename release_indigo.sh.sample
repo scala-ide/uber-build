@@ -12,10 +12,10 @@ fi
 ./build-full-ide.sh ECLIPSE_PLATFORM=indigo \
     VERSION_TAG=v \
     SCALA_VERSION=2.10.2 \
-    SBINARY_BRANCH=0.4.1_SI-3.0.0-RC1 \
+    SBINARY_BRANCH=0.4.2 \
     SBT_GIT_REPO=git://github.com/sbt/sbt.git \
-    SBT_BRANCH=v0.13.0-M2 \
-    SBT_VERSION=0.13.0-M2 \
+    SBT_BRANCH=v0.13.0 \
+    SBT_VERSION=0.13.0 \
     SCALARIFORM_GIT_REPO=git://github.com/scala-ide/scalariform.git \
     SCALARIFORM_BRANCH=scala-ide-3.0.1 \
     SCALA_REFACTORING_GIT_REPO=git://github.com/scala-ide/scala-refactoring \
