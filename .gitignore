@@ -10,3 +10,5 @@ sbt/
 build-tools/
 typesafe-ide/
 worksheet-plugin/
+scala-search/
+next/

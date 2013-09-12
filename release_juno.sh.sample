@@ -1,31 +1,30 @@
 #!/bin/bash -e
 
-# The following command builds a signed Scala IDE 3.0.1-RC1 with Scala 2.10.2 for Eclipse 3.8 (Juno),
-# a signed worksheet based on the freshly built Scala IDE, and a Typesafe IDE (v3.0.1-rc01) product based on
-# the built Scala IDE and Worksheet.
+# The following command builds a signed Scala IDE 4.0.0-b03 with Scala 2.11.0-M5 for Eclipse 3.8 (Juno),
+# a signed worksheet based on the freshly built Scala IDE, and a Typesafe IDE (v4.0.0-b03) product based on
+# the built Scala IDE and Worksheet and Scala Search.
 
 if [[ $# -ne 2 ]]; then
   echo Usage: ./release_juno.sh.sample \<git-url-to-keystore\> \<keystore-password\>
   exit 1
 fi
  ./build-full-ide.sh ECLIPSE_PLATFORM=juno \
-    VERSION_TAG=v \
-    SCALA_VERSION=2.10.2 \
-    SBINARY_BRANCH=0.4.1_SI-3.0.0-RC1 \
-    SBT_GIT_REPO=git://github.com/sbt/sbt.git \
-    SBT_BRANCH=v0.13.0-M2 \
-    SBT_VERSION=0.13.0-M2 \
+    VERSION_TAG=b03 \
+    SCALA_VERSION=2.11.0-M5 \
+    SBT_VERSION=0.13.0 \
+    SBT_IDE_VERSION=0.13.0-on-2.11.0-M5-for-IDE \
     SCALARIFORM_GIT_REPO=git://github.com/scala-ide/scalariform.git \
     SCALARIFORM_BRANCH=scala-ide-3.0.1\
     SCALA_REFACTORING_GIT_REPO=git://github.com/scala-ide/scala-refactoring \
-    SCALA_REFACTORING_BRANCH=0.6.0_SI-3.0.1-RC2_2.10.2 \
-    SCALA_IDE_BRANCH=3.0.1-vfinal-juno \
-    WORKSHEET_BRANCH=0.2.0 \
-    PLAY_BRANCH=0.3.0 \
-    SCALASEARCH_BRANCH=0.1.0 \
-    TYPESAFE_IDE_VERSION_TAG=3.0.1-vfinal \
+    SCALA_REFACTORING_BRANCH=0.6.2-S_4.0.0-b02 \
+    SCALA_IDE_BRANCH=4.0.0-b03 \
+    WORKSHEET_BRANCH=0.2.1-S_4.0.0-b02 \
+    WORKSHEET_VERSION_TAG=b01 \
+    SCALASEARCH_BRANCH=0.2.0 \
+    SCALASEARCH_VERSION_TAG=v \
+    TYPESAFE_IDE_VERSION_TAG=4.0.0-b03 \
     SIGN_BUILD=true \
     BUILD_PLUGINS=true \
     KEYSTORE_GIT_REPO=$1 \
     KEYSTORE_PASS=$2 \
-    PUBLISH=stable
+    PUBLISH=dev
