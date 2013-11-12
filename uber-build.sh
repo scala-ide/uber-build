@@ -476,7 +476,9 @@ function stepSetFlags () {
       ;;
     scala-pr-validator )
       VALIDATOR=true
-      USE_PROVIDED_MAVEN_TGZ=true
+      USE_PROVIDED_MAVEN_TGZ=false
+      # flag used to distinguish a call from pr-scala-integrate-ide from a manual scala-pr-rebuild
+      SCALA_REBUILD=false
       ;;
     scala-pr-rebuild )
       VALIDATOR=true
@@ -614,7 +616,8 @@ function stepCheckConfiguration () {
   checkParameters "SCRIPT_DIR" "BUILD_DIR" "LOCAL_M2_REPO" "P2_CACHE_DIR"
 
 # configure maven here. Needed for some checks
-  MAVEN_ARGS=(-e -B -U "-Dmaven.repo.local=${LOCAL_M2_REPO}")
+# (preserve MAVEN_ARGS coming in from outside, so pr-scala-integrate-ide can pass in "-P pr-scala")
+  MAVEN_ARGS=($MAVEN_ARGS -e -B -U "-Dmaven.repo.local=${LOCAL_M2_REPO}")
 
   mkdir -p "${BUILD_DIR}"
 
@@ -722,8 +725,8 @@ function stepScala () {
     SCALA_UID=$(osgiVersion "org.scala-lang" "scala-compiler" "${SCALA_VERSION}")
   fi
 
-# for Scala pr validation, custom build Scala binaries are used.
-  if ${VALIDATOR}
+# for manual Scala pr validation, custom-built Scala binaries are used.
+  if ${VALIDATOR} && ${SCALA_REBUILD}
   then
     FULL_SCALA_VERSION="${SCALA_VERSION}-${SCALA_GIT_HASH}-SNAPSHOT"
     SCALA_VERSION_SUFFIX="-$SCALA_GIT_HASH-SNAPSHOT"
@@ -794,6 +797,14 @@ function stepScala () {
         fi
     fi
     SCALA_UID=${SCALA_GIT_HASH}
+# When invoked from pr-scala-integrate-ide: don't rebuild Scala -- it's done upstream
+  elif ${VALIDATOR}
+  then
+    checkNeeded "org.scala-lang" "scala-compiler" "${SCALA_VERSION}"
+
+    # TODO: SCALA_VERSION is redundant -- versions.properties specifies it as `maven.version.number`
+    FULL_SCALA_VERSION=${SCALA_VERSION}
+    SCALA_UID=${SCALA_GIT_HASH}
   fi
   SHORT_SCALA_VERSION=$(echo ${FULL_SCALA_VERSION} | awk -F '.' '{print $1"."$2;}')
 }
@@ -827,10 +838,18 @@ function stepZinc () {
 
       cd "${ZINC_BUILD_DIR}"
 
+      # Only used when called from pr-scala-integrate-ide
+      if ! ${SCALA_REBUILD}
+      then
+        # Allow the copy to fail for old builds. Dbuild has a fallback.
+        cp "${CURRENT_DIR}/versions.properties" "${ZINC_BUILD_DIR}/" ||:
+        extraDbuildArgs="-DprRepoUrl=${prRepoUrl-http://private-repo.typesafe.com/typesafe/scala-pr-validation-snapshots/}"
+      fi
+
       SCALA_VERSION="${FULL_SCALA_VERSION}" \
         PUBLISH_REPO="file://${LOCAL_M2_REPO}" \
         LOCAL_M2_REPO="${LOCAL_M2_REPO}" \
-        bin/dbuild sbt-on-${SHORT_SCALA_VERSION}.x
+        bin/dbuild $extraDbuildArgs sbt-on-${SHORT_SCALA_VERSION}.x
 
       checkNeeded "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
     fi
@@ -1229,4 +1248,4 @@ fi
 # END
 ######
 
-printStep "Build succesful"
+printStep "Build successful"
