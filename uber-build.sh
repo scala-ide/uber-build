@@ -275,6 +275,13 @@ function mergeP2Repo () {
 # m2 + osgi
 ############
 
+# Extract the osgi version form a META-INF/MANIFEST.MF file
+# in the current directory.
+function extractOsgiVersion () {
+  # used \r as an extra field separator, to avoid problem with Windows style new lines.
+  grep Bundle-Version META-INF/MANIFEST.MF | awk -F '[ \r]' '{printf $2;}'
+}
+
 # Extract the osgi version from the MANIFEST.MF file
 # of an artifact available in the local m2 repo.
 # $1 - groupId
@@ -284,8 +291,16 @@ function osgiVersion () {
   cd "${TMP_DIR}"
   rm -rf *
   unzip -q "${LOCAL_M2_REPO}/${1//\.//}/$2/$3/$2-$3.jar"
-  # used \r as an extra field separator, to avoid problem with Windows style new lines.
-  grep Bundle-Version META-INF/MANIFEST.MF | awk -F '[ \r]' '{printf $2;}'
+  extractOsgiVersion
+}
+
+# Extract the osgi version from the MANIFEST.MF file of a jar.
+# $1 - jar location
+function osgiVersionFromJar () {
+  cd "${TMP_DIR}"
+  rm -rf *
+  unzip -q "$1" "META-INF/MANIFEST.MF"
+  extractOsgiVersion
 }
 
 ##############
@@ -1186,6 +1201,20 @@ function stepPublish () {
 
   info "generate base ecosystem repo"
 
+  SCALA_IDE_VERSION=$(osgiVersionFromJar "$(getCacheLocation ${SCALA_IDE_P2_ID})/plugins/org.scala-ide.sdt.core_*")
+
+  case "${SCALA_IDE_VERSION}" in
+    3.* )
+      ECOSYSTEM_SCALA_IDE_CODE_NAME="helium"
+      ;;
+    4.* )
+      ECOSYSTEM_SCALA_IDE_CODE_NAME="lithium"
+      ;;
+    * )
+      error "Not supported version of Scala IDE: ${SCALA_IDE_VERSION}."
+      ;;
+  esac
+
   rm -rf "${TMP_DIR}"/*
   ECOSYSTEM_P2_REPO="${TMP_DIR}/p2-repo-for-ecosystem"
   mkdir -p "${ECOSYSTEM_P2_REPO}"
@@ -1204,7 +1233,7 @@ function stepPublish () {
   ZIP_NAME=base-${TIMESTAMP}.zip
   zip -qr ${ZIP_NAME} base
 
-  ECOSYSTEM_UPLOAD_DIR="scala-ide.dreamhosters.com/sdk/next/${ECOSYSTEM_ECLIPSE_VERSION}/${ECOSYSTEM_SCALA_VERSION}/${BUILD_TYPE}"
+  ECOSYSTEM_UPLOAD_DIR="scala-ide.dreamhosters.com/sdk/next/${ECOSYSTEM_SCALA_IDE_CODE_NAME}/${ECOSYSTEM_ECLIPSE_VERSION}/${ECOSYSTEM_SCALA_VERSION}/${BUILD_TYPE}"
   scp ${ZIP_NAME} ${SSH_ACCOUNT}:${ECOSYSTEM_UPLOAD_DIR}
   ssh ${SSH_ACCOUNT} "cd ${ECOSYSTEM_UPLOAD_DIR}; rm -rf base; unzip -q ${ZIP_NAME}"
 
