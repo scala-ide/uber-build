@@ -625,7 +625,7 @@ function stepCheckPrerequisites () {
     checkExecutableOnPath "keytool"
     if [ "${RES}" != 0 ]
     then
-      error "keytool is required on PATH to sign the jars"
+      error "'keytool' is required on PATH to sign the jars"
     fi
 
     if [ -n "${ECLIPSE}" ]
@@ -645,6 +645,13 @@ function stepCheckPrerequisites () {
         export ECLIPSE=$(which eclipse)
       fi
     fi
+  fi
+
+# maven is used in most of the phases
+  checkExecutableOnPath "mvn"
+  if [ "${RES}" != 0 ]
+  then
+    error "'mvn' is required on PATH for any build."
   fi
 }
 
