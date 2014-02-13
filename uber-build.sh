@@ -366,6 +366,16 @@ function fetchGitBranch () {
 
 }
 
+
+function fetchLocalZinc() {
+  if [ ! -d "$1/bin/dbuild" ]
+  then
+    rm -rf "$1"
+    mkdir -p "$(dirname "$1")"
+    cp -R "${CURRENT_DIR}/zinc" "$1"
+  fi
+}
+
 ##################
 ##################
 # The build steps
@@ -489,6 +499,7 @@ function stepSetFlags () {
 # the flags
   RELEASE=false
   DRY_RUN=true
+  IDE_BUILD=true
   SCALA_RELEASE=false
   SCALA_VALIDATOR=false
   SCALA_REBUILD=false
@@ -531,6 +542,17 @@ function stepSetFlags () {
     scala-local-build )
       SCALA_REBUILD=true
       SBT_REBUILD=true
+      ;;
+    sbt-nightly )
+      RELEASE=true
+      DRY_RUN=true
+      SBT_REBUILD=true
+      SBT_ALWAYS_BUILD=true
+      IDE_BUILD=false
+      ;;
+    sbt-release )
+      # TODO(jsuereth) Figure out how we cut releases with this script!!!
+      missingParameterChoice "OPERATION (sbt-release not implemented)" "release, release-dryrun, scala-pr-validator, scala-pr-rebuild, scala-local-build"
       ;;
     * )
       missingParameterChoice "OPERATION" "release, release-dryrun, scala-pr-validator, scala-pr-rebuild, scala-local-build"
@@ -850,6 +872,18 @@ function stepScala () {
 
   fi
 
+  # Here we attempt to grab the version.properties file from the zinc nightly build rather
+  # than scala, as we're not rebuilding scala.
+  # TODO - This should pull version.properties for the scala we're building against.
+  if ${SBT_ALWAYS_BUILD} && ${USE_SCALA_VERSIONS_PROPERTIES_FILE}
+  then
+    # If we haven't built scala, this will copy the default properties file.
+    if [ ! -f "${SCALA_VERSIONS_PROPERTIES_PATH}" ]
+    then
+      SCALA_VERSIONS_PROPERTIES_PATH="${ZINC_DIR}/versions.properties"
+    fi
+  fi
+
   if ${SBT_REBUILD} && ${USE_SCALA_VERSIONS_PROPERTIES_FILE}
   then
     if [ ! -f "${SCALA_VERSIONS_PROPERTIES_PATH}" ]
@@ -872,7 +906,8 @@ function stepZinc () {
 
 
 # for releases, already existing sbt binaries are used.
-  if ${RELEASE}
+# TODO(jsuereth) - Hooks for releasing sbt itself in this script as well...
+  if ${RELEASE} && [ ! ${SBT_ALWAYS_BUILD} ]
   then
     FULL_SBT_VERSION="${SBT_VERSION}-on-${FULL_SCALA_VERSION}-for-IDE${ZINC_BUILD_VERSION_SUFFIX}"
     IDE_M2_REPO="http://typesafe.artifactoryonline.com/typesafe/ide-${SHORT_SCALA_VERSION}"
@@ -882,13 +917,15 @@ function stepZinc () {
 # for Scala pr validation, custom build sbt binaries are used.
   if ${SBT_REBUILD}
   then
+    # TODO - Grab full version from configured properties file
     FULL_SBT_VERSION="${SBT_VERSION}-on-${FULL_SCALA_VERSION}-for-IDE-SNAPSHOT"
-    checkAvailability "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
-    if [ $RES != 0 ]
+    # TODO - Only check availability if we're not in sbt nightly mode.
+    if ${SBT_ALWAYS_BUILD} || checkAvailability "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
     then
       info "Building Zinc using dbuild"
 
-      fetchGitBranch "${ZINC_BUILD_DIR}" "${ZINC_BUILD_GIT_REPO}" "${ZINC_BUILD_GIT_BRANCH}" NaN
+      # TODO - Fetch zinc locally.
+      fetchLocalZinc "${ZINC_BUILD_DIR}"
 
       cd "${ZINC_BUILD_DIR}"
 
@@ -1279,10 +1316,14 @@ stepCheckConfiguration
 stepScala
 
 stepZinc
-stepScalaRefactoring
-stepScalariform
 
-stepScalaIDE
+if ${IDE_BUILD}
+then 
+  stepScalaRefactoring
+  stepScalariform
+
+  stepScalaIDE
+fi
 
 if ${WORKSHEET_PLUGIN}
 then
