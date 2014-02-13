@@ -366,14 +366,25 @@ function fetchGitBranch () {
 
 }
 
-
+# Pulls the local zinc build from our directory into the target directory to actually execute.
+# $1 - The directory into which we copy zinc.
 function fetchLocalZinc() {
-  if [ ! -d "$1/bin/dbuild" ]
+  if [ ! -x "$1/bin/dbuild" ]
   then
     rm -rf "$1"
     mkdir -p "$(dirname "$1")"
-    cp -R "${CURRENT_DIR}/zinc" "$1"
+    if [ ! -x "${ZINC_DIR}/bin/dbuild"]
+    then
+      error "No local zinc build found!  Required in ${ZINC_DIR}."
+    fi
+
+    cp -R "${ZINC_DIR}" "$1"
+  else
+    # We recopy over the scripts only to make sure they're up-to-date
+    cp ${ZINC_DIR}/*.properties "$1/"
+    cp ${ZINC_DIR}/sbt-on-* "$1/"
   fi
+
 }
 
 ##################
@@ -919,8 +930,19 @@ function stepZinc () {
   then
     # TODO - Grab full version from configured properties file
     FULL_SBT_VERSION="${SBT_VERSION}-on-${FULL_SCALA_VERSION}-for-IDE-SNAPSHOT"
+
+    SBT_AVAILABLE=false
+    if [ ! ${SBT_ALWAYS_BUILD} ]
+    then
+      checkAvailability "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
+      if [ $RES = 0 ]
+      then
+        SBT_AVAILABLE=true
+      fi
+    fi
+
     # TODO - Only check availability if we're not in sbt nightly mode.
-    if ${SBT_ALWAYS_BUILD} || checkAvailability "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
+    if ${SBT_ALWAYS_BUILD} || ${SBT_AVAILABLE}
     then
       info "Building Zinc using dbuild"
 
