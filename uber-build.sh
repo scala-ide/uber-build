@@ -962,7 +962,10 @@ function stepZinc () {
       fetchLocalZinc "${ZINC_BUILD_DIR}"
 
       # TODO - Allow the properties file to be configured or automatically set.
-      ZINC_PROPERTIES_FILE=sbt-on-${SHORT_SCALA_VERSION}.x.properties
+      if [ -z "$ZINC_PROPERTIES_FILE" ]
+      then 
+        ZINC_PROPERTIES_FILE=sbt-on-${SHORT_SCALA_VERSION}.x.properties
+      fi
 
       FULL_SBT_VERSION=$(readProperty "${ZINC_BUILD_DIR}/${ZINC_PROPERTIES_FILE}" "sbt.version")
       info "Detected sbt version: ${FULL_SBT_VERSION}"
@@ -974,6 +977,7 @@ function stepZinc () {
       fi
 
       # TODO - publish repo should be the default one if we're in release mode.
+      SBT_VERSION_PROPERTIES_FILE="file:${ZINC_PROPERTIES_FILE}" \
       SCALA_VERSION="${FULL_SCALA_VERSION}" \
         PUBLISH_REPO="file://${LOCAL_M2_REPO}" \
         LOCAL_M2_REPO="${LOCAL_M2_REPO}" \
