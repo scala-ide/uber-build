@@ -81,7 +81,7 @@
       {
         name: scalacheck
         extra.sbt-version: "0.13.0",
-        uri: "https://github.com/rickynils/scalacheck.git#1.11.3"
+        uri: "https://github.com/rickynils/scalacheck.git#"${vars.scalacheck-tag}
       },
       {
         name:   "sbinary",
@@ -104,7 +104,7 @@
       }, {
         name:   "sbt-republish",
         uri:    "http://github.com/typesafehub/sbt-republish.git#"${vars.sbt-republish-tag},
-        set-version: ${vars.sbt-version}"-on-"${vars.maven.version.number}${vars.sbt.version.suffix}${vars.sbt.snapshot.suffix}
+        set-version: ${vars.sbt-version}
       }, {
         name:   "zinc",
         uri:    "https://github.com/typesafehub/zinc.git#"${vars.zinc-tag}

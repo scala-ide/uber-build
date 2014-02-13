@@ -65,10 +65,10 @@
       }, {
         name:   "scalacheck",
         system: "ivy",
-        uri:    "ivy:org.scalacheck#scalacheck_2.10;1.10.1"
+        uri:    "ivy:org.scalacheck#scalacheck_2.10;"${vars.scalacheck-tag}
       }, {
         name:   "sbinary",
-        uri:    "git://github.com/harrah/sbinary.git#v0.4.2"
+        uri:    "git://github.com/harrah/sbinary.git#"${vars.sbinary-tag}
         extra: { projects: ["core"] }
       }, {
         name:   "sbt",
@@ -85,7 +85,7 @@
       }, {
         name:   "sbt-republish",
         uri:    "http://github.com/typesafehub/sbt-republish.git#"${vars.sbt-republish-tag},
-        set-version: ${vars.sbt-version}"-on-"${vars.scala-version}${vars.sbt.version.suffix}${vars.sbt.snapshot.suffix}
+        set-version: ${vars.sbt-version}
       }, {
         name:   "zinc",
         uri:    "https://github.com/typesafehub/zinc.git#"${vars.zinc-tag}

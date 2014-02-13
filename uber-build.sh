@@ -388,6 +388,20 @@ function fetchLocalZinc() {
 }
 
 ##################
+# Properties Helpers
+##################
+
+# Reads the given property value from a properties file.  Intended to be used as:
+#   $(readProperty <file> <prop>)
+# $1 The property file
+# $2 The property
+function readProperty() {
+  local prop="$2"
+  echo $(grep -x "sbt-version=.*" "$1" | awk '{ split($0,a,"="); print a[2] }')
+}
+
+
+##################
 ##################
 # The build steps
 ##################
@@ -928,7 +942,6 @@ function stepZinc () {
 # for Scala pr validation, custom build sbt binaries are used.
   if ${SBT_REBUILD}
   then
-    # TODO - Grab full version from configured properties file
     FULL_SBT_VERSION="${SBT_VERSION}-on-${FULL_SCALA_VERSION}-for-IDE-SNAPSHOT"
 
     SBT_AVAILABLE=false
@@ -946,9 +959,13 @@ function stepZinc () {
     then
       info "Building Zinc using dbuild"
 
-      # TODO - Fetch zinc locally.
       fetchLocalZinc "${ZINC_BUILD_DIR}"
 
+      # TODO - Allow the properties file to be configured or automatically set.
+      ZINC_PROPERTIES_FILE=sbt-on-${SHORT_SCALA_VERSION}.x.properties
+
+      FULL_SBT_VERSION=$(readProperty "${ZINC_BUILD_DIR}/${ZINC_PROPERTIES_FILE}" "sbt.version")
+      info "Detected sbt version: ${FULL_SBT_VERSION}"
       cd "${ZINC_BUILD_DIR}"
 
       if $USE_SCALA_VERSIONS_PROPERTIES_FILE
@@ -956,11 +973,13 @@ function stepZinc () {
         cp "${SCALA_VERSIONS_PROPERTIES_PATH}" .
       fi
 
+      # TODO - publish repo should be the default one if we're in release mode.
       SCALA_VERSION="${FULL_SCALA_VERSION}" \
         PUBLISH_REPO="file://${LOCAL_M2_REPO}" \
         LOCAL_M2_REPO="${LOCAL_M2_REPO}" \
         bin/dbuild ${ZINC_BUILD_ARGS} sbt-on-${SHORT_SCALA_VERSION}.x
 
+      # TODO - We should either skip or fix this when trying to do an sbt release.
       checkNeeded "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
     fi
   fi
