@@ -364,6 +364,41 @@ function fetchGitBranch () {
 
 }
 
+# Pulls the local zinc build from our directory into the target directory to actually execute.
+# $1 - The directory into which we copy zinc.
+function fetchLocalZinc() {
+  if [ ! -x "$1/bin/dbuild" ]
+  then
+    rm -rf "$1"
+    mkdir -p "$(dirname "$1")"
+    if [ ! -x "${ZINC_DIR}/bin/dbuild"]
+    then
+      error "No local zinc build found!  Required in ${ZINC_DIR}."
+    fi
+
+    cp -R "${ZINC_DIR}" "$1"
+  else
+    # We recopy over the scripts only to make sure they're up-to-date
+    cp ${ZINC_DIR}/*.properties "$1/"
+    cp ${ZINC_DIR}/sbt-on-* "$1/"
+  fi
+
+}
+
+##################
+# Properties Helpers
+##################
+
+# Reads the given property value from a properties file.  Intended to be used as:
+#   $(readProperty <file> <prop>)
+# $1 The property file
+# $2 The property
+function readProperty() {
+  local prop="$2"
+  echo $(grep -x "sbt-version=.*" "$1" | awk '{ split($0,a,"="); print a[2] }')
+}
+
+
 ##################
 ##################
 # The build steps
@@ -487,11 +522,13 @@ function stepSetFlags () {
 # the flags
   RELEASE=false
   DRY_RUN=true
+  IDE_BUILD=false
   SCALA_RELEASE=false
   SCALA_VALIDATOR=false
   SCALA_REBUILD=false
   SBT_RELEASE=false
   SBT_REBUILD=false
+  SBT_ALWAYS_BUILD=false
   SIGN_ARTIFACTS=false
   WORKSHEET_PLUGIN=false
   PLAY_PLUGIN=false
@@ -506,20 +543,26 @@ function stepSetFlags () {
       RELEASE=true
       DRY_RUN=false
       SIGN_ARTIFACTS=true
+      SBT_REBUILD=true
+      IDE_BUILD=true
       ;;
     release-dryrun )
       RELEASE=true
       DRY_RUN=true
+      SBT_REBUILD=true
+      IDE_BUILD=true
       SIGN_ARTIFACTS=true
       ;;
     nightly )
       RELEASE=true
       DRY_RUN=true
+      IDE_BUILD=true
       SIGN_ARTIFACTS=false
       ;;
     scala-pr-validator )
       SCALA_VALIDATOR=true
       SBT_REBUILD=true
+      IDE_BUILD=true
       ;;
     scala-pr-rebuild )
       SCALA_VALIDATOR=true
@@ -529,6 +572,13 @@ function stepSetFlags () {
     scala-local-build )
       SCALA_REBUILD=true
       SBT_REBUILD=true
+      IDE_BUILD=true
+      ;;
+    sbt-nightly )
+      RELEASE=true
+      DRY_RUN=true
+      SBT_REBUILD=true
+      SBT_ALWAYS_BUILD=true
       ;;
     * )
       missingParameterChoice "OPERATION" "release, release-dryrun, scala-pr-validator, scala-pr-rebuild, scala-local-build"
@@ -681,7 +731,7 @@ function stepCheckConfiguration () {
 
   if ${SBT_REBUILD}
   then
-    checkParameters "ZINC_BUILD_DIR" "ZINC_BUILD_GIT_REPO" "ZINC_BUILD_GIT_BRANCH"
+    checkParameters "ZINC_BUILD_DIR"
     if [ -n "${prRepoUrl}" ]
     then
       ZINC_BUILD_ARGS="-DprRepoUrl=${prRepoUrl}"
@@ -855,6 +905,18 @@ function stepScala () {
     FULL_SCALA_VERSION=${SCALA_VERSION}
   fi
 
+  # Here we attempt to grab the version.properties file from the zinc nightly build rather
+  # than scala, as we're not rebuilding scala.
+  # TODO - This should pull version.properties for the scala we're building against.
+  if ${SBT_ALWAYS_BUILD} && ${USE_SCALA_VERSIONS_PROPERTIES_FILE}
+  then
+    # If we haven't built scala, this will copy the default properties file.
+    if [ ! -f "${SCALA_VERSIONS_PROPERTIES_PATH}" ]
+    then
+      SCALA_VERSIONS_PROPERTIES_PATH="${ZINC_DIR}/versions.properties"
+    fi
+  fi
+
   if ${SBT_REBUILD} && ${USE_SCALA_VERSIONS_PROPERTIES_FILE}
   then
     if [ ! -f "${SCALA_VERSIONS_PROPERTIES_PATH}" ]
@@ -872,31 +934,59 @@ function stepScala () {
 # Zinc
 #######
 
+# Constructs a zinc properties file in ZINC_DIR and gives the name of it.
+function makeZincPropertiesFile() {
+  local filename="current-zinc-build.properties"
+  local properties_file="${ZINC_BUILD_DIR}/${filename}"
+  info "Writing properties: ${properties_file}"
+  echo > "${properties_file}"
+  echo "publish-repo=http://private-repo.typesafe.com/typesafe/ide-2.11" >> "${properties_file}"
+  echo "sbt-version=${FULL_SBT_VERSION}" >> "${properties_file}"
+  info "$(cat "${properties_file}")"
+  echo "${filename}"
+}
+
 function stepZinc () {
   printStep "Zinc"
 
   # for Scala pr validation, custom build sbt binaries are used.
   if ${SBT_REBUILD}
   then
+    # TODO - if release, no -SNAPSHOT.
     FULL_SBT_VERSION="${SBT_VERSION}-on-${FULL_SCALA_VERSION}-for-IDE-SNAPSHOT"
-    if ! checkAvailability "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
+
+    # TODO - Only check availability if we're not in sbt nightly mode.
+    if ${SBT_ALWAYS_BUILD} || ! checkAvailability "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
     then
       info "Building Zinc using dbuild"
 
-      fetchGitBranch "${ZINC_BUILD_DIR}" "${ZINC_BUILD_GIT_REPO}" "${ZINC_BUILD_GIT_BRANCH}" NaN
+      fetchLocalZinc "${ZINC_BUILD_DIR}"
 
+      # TODO - Allow the properties file to be configured or automatically set.
+      if [ -z "$ZINC_PROPERTIES_FILE" ]
+      then 
+        ZINC_PROPERTIES_FILE=$(makeZincPropertiesFile)
+      fi
+
+      info "Detected sbt version: ${FULL_SBT_VERSION}"
+      # TODO - pushd/popd?
       cd "${ZINC_BUILD_DIR}"
 
       if $USE_SCALA_VERSIONS_PROPERTIES_FILE
       then
         cp "${SCALA_VERSIONS_PROPERTIES_PATH}" .
       fi
+      # TODO - Check to see if we need to download Scala version.properties from 
+      #        raw.github.com...
 
+      # TODO - publish repo should be the default one if we're in release mode.
+      SBT_VERSION_PROPERTIES_FILE="file:${ZINC_PROPERTIES_FILE}" \
       SCALA_VERSION="${FULL_SCALA_VERSION}" \
         PUBLISH_REPO="file://${LOCAL_M2_REPO}" \
         LOCAL_M2_REPO="${LOCAL_M2_REPO}" \
         bin/dbuild ${ZINC_BUILD_ARGS} sbt-on-${SHORT_SCALA_VERSION}.x
 
+      # TODO - We should either skip or fix this when trying to do an sbt release.
       checkNeeded "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}"
     fi
   else
@@ -1277,10 +1367,14 @@ stepCheckConfiguration
 stepScala
 
 stepZinc
-stepScalaRefactoring
-stepScalariform
 
-stepScalaIDE
+if ${IDE_BUILD}
+then 
+  stepScalaRefactoring
+  stepScalariform
+
+  stepScalaIDE
+fi
 
 if ${WORKSHEET_PLUGIN}
 then
