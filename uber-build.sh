@@ -807,6 +807,17 @@ function stepCheckConfiguration () {
       SCALA_210_OR_LATER=true
       SCALA_211_OR_LATER=true
       ;;
+    2.12.* )
+      SCALA_PROFILE="scala-2.12.x"
+      SCALA_REPO_SUFFIX="212x"
+      ECOSYSTEM_SCALA_VERSION="scala212"
+      SHORT_SCALA_VERSION="2.12"
+      USE_SCALA_VERSIONS_PROPERTIES_FILE=true
+      SCALA_210_OR_LATER=true
+      SCALA_211_OR_LATER=true
+      SCALA_212_OR_LATER=true
+      ;;
+
     * )
       error "Not supported version of Scala: ${SCALA_VERSION}."
       ;;
