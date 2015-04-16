@@ -571,6 +571,7 @@ function stepSetFlags () {
       SCALA_VALIDATOR=true
       SCALA_REBUILD=false
       IDE_BUILD=true
+      SBT_PUBLISH=true # save time on second run
       ;;
     scala-pr-rebuild )
       SCALA_VALIDATOR=true
