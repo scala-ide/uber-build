@@ -1102,10 +1102,15 @@ function stepZinc () {
     then
       cp "${SCALA_VERSIONS_PROPERTIES_PATH}" versions.properties
     fi
+    DBUILD_VERSION=`grep -A 3 '\[app\]' bin/dbuild.properties | sed -e 's/version: \(.*\)/\1/' -e 'tx' -e 'd' -e ':x' | tr -d ' '`
     SBT_VERSION_PROPERTIES_FILE="file:${ZINC_PROPERTIES_FILE}" \
       SCALA_VERSION="${FULL_SCALA_VERSION}" \
       LOCAL_M2_REPO="${LOCAL_M2_REPO}" \
-      bin/dbuild ${ZINC_BUILD_ARGS} sbt-on-${SHORT_SCALA_VERSION}.x
+      bin/dbuild \
+        -Ddbuild.cache.dir="${CURRENT_DIR}/.dbuild/cache-$DBUILD_VERSION" \
+        -Ddbuild.boot.directory="${CURRENT_DIR}/.dbuild/boot" \
+        -Duser.home="${CURRENT_DIR}/.dbuild" \
+        ${ZINC_BUILD_ARGS} sbt-on-${SHORT_SCALA_VERSION}.x
   fi
 
   checkNeeded "com.typesafe.sbt" "incremental-compiler" "${FULL_SBT_VERSION}" "${IDE_M2_REPO}"
