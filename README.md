@@ -103,6 +103,12 @@ Below follows a list of published releases with the exact command that was used 
 
 (Before this page was created we used to keep these information in a [spreadsheet document on Google Drive](https://docs.google.com/a/typesafe.com/spreadsheet/ccc?key=0Aic2QFD0IxW4dEszQUxQWFROemE5UkFuc3JncjBaQlE#gid=0))
 
+## v4.7.1-rc3
+
+- **With Eclipse 4.7(Oxygen)**
+
+uber-build.sh at tag 4.7.1-rc3 with [config/release-47x-212.conf](https://github.com/scala-ide/uber-build/blob/4.7.1-rc3/config/release-47x-212.conf)
+
 ## v4.7.1-rc2
 
 - **With Eclipse 4.7(Oxygen)**
